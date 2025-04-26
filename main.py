@@ -90,8 +90,12 @@ def get_supplies_csv():
 
 @app.route('/wb/returns-csv')
 def get_returns_csv():
-    headers = {"Authorization": f"Bearer {WB_RETURNS_TOKEN}"}
-    url = "https://statistics-api.wildberries.ru/api/v1/supplier/returns"
+    date_from = request.args.get('dateFrom')
+    if not date_from:
+        return "dateFrom is required (format YYYY-MM-DD)", 400
+
+    headers = {"Authorization": f"Bearer {WB_STATISTICS_TOKEN}"}
+    url = f"https://statistics-api.wildberries.ru/api/v1/supplier/sales?dateFrom={date_from}"
     try:
         response = requests.get(url, headers=headers)
         if not response.ok:
@@ -101,10 +105,16 @@ def get_returns_csv():
         if not data:
             return "No data available", 204
 
+        # Фильтрация возвратов
+        returns_data = [item for item in data if item.get("orderType", "").lower() == "возврат"]
+
+        if not returns_data:
+            return "No returns found", 204
+
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=data[0].keys())
+        writer = csv.DictWriter(output, fieldnames=returns_data[0].keys())
         writer.writeheader()
-        writer.writerows(data)
+        writer.writerows(returns_data)
 
         return Response(output.getvalue(), mimetype="text/csv")
 
@@ -114,3 +124,4 @@ def get_returns_csv():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
+
